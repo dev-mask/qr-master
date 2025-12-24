@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- Added viewport-fit=cover for proper notch handling -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#2563eb">
+    <title>QR & Barcode Master</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7V5a2 2 0 0 1 2-2h2'/%3E%3Cpath d='M17 3h2a2 2 0 0 1 2 2v2'/%3E%3Cpath d='M21 17v2a2 2 0 0 1-2 2h-2'/%3E%3Cpath d='M7 21H5a2 2 0 0 1-2-2v-2'/%3E%3Cline x1='7' x2='17' y1='12' y2='12'/%3E%3C/svg%3E">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Libraries -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* Custom tweaks for scanner overlay */
+        #reader {
+            width: 100%;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            background: #000;
+        }
+        #reader video {
+            object-fit: cover;
+            border-radius: 0.75rem;
+        }
+        
+        /* Highlight styling */
+        .scan-region-highlight {
+            border-radius: 10px;
+            outline: 2px solid #3b82f6 !important;
+        }
+        
+        /* Smooth fade for tabs */
+        .tab-content {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .tab-content.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        /* Hide scrollbar for clean mobile look */
+        ::-webkit-scrollbar {
+            width: 0px;
+            background: transparent;
+        }
+
+        /* Safe area handling */
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        
+        /* NEW: Safe area top padding for the header */
+        .pt-safe-header {
+            /* Further increased base padding to 5rem (approx 80px) to safely clear status bars 
+               on devices/wrappers that don't report safe-area-inset correctly.
+               Added !important to ensure it overrides Tailwind utility classes. */
+            padding-top: calc(env(safe-area-inset-top) + 2rem) !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-slate-800 font-sans h-[100dvh] w-full overflow-hidden flex justify-center items-center">
+
+    <!-- Mobile App Container -->
+    <div class="w-full h-full max-h-[100dvh] sm:h-[90vh] sm:w-[400px] sm:rounded-2xl bg-white shadow-2xl flex flex-col relative overflow-hidden">
+        
+        <!-- Header -->
+        <header class="flex-shrink-0 bg-blue-600 text-white p-4 pt-safe-header shadow-md z-20 flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold tracking-tight flex items-center gap-2">
+                    <i data-lucide="scan-line" class="w-6 h-6"></i> CodeMaster
+                </h1>
+                <p class="text-blue-100 text-xs">Scan & Generate instantly</p>
+            </div>
+            <!-- Clear History Button -->
+            <button onclick="clearHistory()" class="text-xs bg-blue-700 hover:bg-blue-800 px-2 py-1 rounded text-blue-100 transition-colors">
+                Clear
+            </button>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 overflow-y-auto relative bg-slate-50 w-full">
+            
+            <!-- VIEW: SCANNER -->
+            <div id="view-scan" class="tab-content active flex-col h-full p-4">
+                
+                <!-- Camera Section -->
+                <div class="flex-none flex flex-col items-center justify-center relative">
+                    <div id="reader-container" class="w-full aspect-square bg-gray-900 rounded-xl overflow-hidden shadow-inner flex items-center justify-center relative">
+                        <div id="reader" class="w-full h-full"></div>
+                        <div id="camera-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-gray-500 z-0">
+                            <i data-lucide="camera" class="w-12 h-12 mb-2 opacity-50"></i>
+                            <span class="text-sm">Camera inactive</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 flex gap-3 w-full">
+                        <button id="btn-start-scan" class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2">
+                            <i data-lucide="camera" class="w-4 h-4"></i> Start Scan
+                        </button>
+                        <button id="btn-stop-scan" class="hidden flex-1 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2">
+                            <i data-lucide="octagon-pause" class="w-4 h-4"></i> Stop
+                        </button>
+                    </div>
+                </div>
+
+                <!-- History Container -->
+                <div id="scan-history" class="w-full flex flex-col gap-3 mt-4 pb-4">
+                    <!-- Dynamic items will be injected here -->
+                    <div id="empty-history-msg" class="text-center text-gray-400 mt-4 text-sm">
+                        No scans yet
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: GENERATOR -->
+            <div id="view-generate" class="tab-content flex-col p-4 h-full">
+                
+                <!-- Input Section -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4">
+                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Content</label>
+                    <textarea id="gen-input" rows="2" placeholder="Type URL or text here..." class="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-all"></textarea>
+                    
+                    <div class="grid grid-cols-2 gap-2 mt-3">
+                        <button onclick="setType('qr')" id="btn-type-qr" class="type-btn active py-2 rounded-lg text-sm font-medium border border-blue-600 bg-blue-50 text-blue-700">
+                            QR Code
+                        </button>
+                        <button onclick="setType('barcode')" id="btn-type-bar" class="type-btn py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50">
+                            Barcode
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Preview Section -->
+                <div class="flex-1 flex flex-col items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 p-6 min-h-[200px]">
+                    <div id="preview-area" class="w-full h-full flex items-center justify-center overflow-hidden">
+                        <div id="qrcode-container" class="hidden"></div>
+                        <canvas id="barcode-canvas" class="hidden max-w-full"></canvas>
+                        
+                        <!-- Empty State -->
+                        <div id="gen-placeholder" class="text-center text-gray-400">
+                            <i data-lucide="qr-code" class="w-12 h-12 mx-auto mb-2 opacity-30"></i>
+                            <p class="text-sm">Enter text to generate</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <button onclick="downloadCode()" id="btn-download" disabled class="mt-4 w-full py-3 bg-blue-600 disabled:bg-gray-300 disabled:text-gray-500 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
+                    <i data-lucide="download" class="w-5 h-5"></i> Download Image
+                </button>
+            </div>
+
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="flex-shrink-0 bg-white border-t border-gray-200 flex justify-around p-2 pb-4 pb-safe z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            <button onclick="switchTab('scan')" id="nav-scan" class="nav-item active flex-1 flex flex-col items-center p-2 rounded-lg text-blue-600 transition-colors">
+                <i data-lucide="scan-line" class="w-6 h-6 mb-1"></i>
+                <span class="text-[10px] font-bold">Scan</span>
+            </button>
+            <button onclick="switchTab('generate')" id="nav-generate" class="nav-item flex-1 flex flex-col items-center p-2 rounded-lg text-gray-400 hover:text-gray-600 transition-colors">
+                <i data-lucide="qr-code" class="w-6 h-6 mb-1"></i>
+                <span class="text-[10px] font-bold">Generate</span>
+            </button>
+        </nav>
+
+        <!-- Toast Notification -->
+        <div id="toast" class="absolute top-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-full text-sm shadow-lg opacity-0 pointer-events-none transition-opacity duration-300 flex items-center gap-2 z-50">
+            <i data-lucide="check-circle" class="w-4 h-4 text-green-400"></i>
+            <span id="toast-msg">Copied!</span>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Icons ---
+        lucide.createIcons();
+
+        // --- State ---
+        let html5QrCode;
+        let currentType = 'qr'; // 'qr' or 'barcode'
+        let generatedDataUrl = null;
+        let lastScannedText = null;
+        let lastScannedTime = 0;
+
+        // --- Tab Switching ---
+        function switchTab(tab) {
+            // Update Nav UI
+            document.querySelectorAll('.nav-item').forEach(el => {
+                el.classList.remove('text-blue-600');
+                el.classList.add('text-gray-400');
+            });
+            document.getElementById(`nav-${tab}`).classList.remove('text-gray-400');
+            document.getElementById(`nav-${tab}`).classList.add('text-blue-600');
+
+            // Update View
+            document.querySelectorAll('.tab-content').forEach(el => {
+                el.classList.remove('active');
+            });
+            document.getElementById(`view-${tab}`).classList.add('active');
+
+            // Logic: if leaving scan tab, stop camera to save battery
+            if (tab === 'generate' && html5QrCode && html5QrCode.isScanning) {
+                stopScanning();
+            }
+        }
+
+        // --- Toast Notification ---
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = msg;
+            toast.classList.remove('opacity-0');
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+            }, 2000);
+        }
+
+        function clearHistory() {
+            document.getElementById('scan-history').innerHTML = '<div id="empty-history-msg" class="text-center text-gray-400 mt-4 text-sm">No scans yet</div>';
+            lastScannedText = null;
+        }
+
+        // ==========================================
+        //   SCANNING LOGIC
+        // ==========================================
+        
+        const btnStart = document.getElementById('btn-start-scan');
+        const btnStop = document.getElementById('btn-stop-scan');
+
+        btnStart.addEventListener('click', startScanning);
+        btnStop.addEventListener('click', stopScanning);
+
+        async function startScanning() {
+            // --- SECURITY CHECK ---
+            // Browsers block Camera access on insecure origins (http://)
+            if (!window.isSecureContext) {
+                alert("Security Error: Camera requires HTTPS. Please ensure your website URL starts with https://");
+                return;
+            }
+
+            // --- EXPLICIT PERMISSION REQUEST (Fix for APKs) ---
+            // We manually ask for permissions first. This often wakes up the Native WebView prompt.
+            try {
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                    // If we got here, permission is granted! Stop the temp stream.
+                    stream.getTracks().forEach(track => track.stop());
+                }
+            } catch (err) {
+                // If this fails, the app/browser has blocked it.
+                // We show an ALERT because console.log is invisible in APKs.
+                alert("Permission Error: " + err.name + "\n\nPlease check your phone settings or APK permissions.");
+                return; 
+            }
+
+            // --- START LIBRARY ---
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("reader");
+            }
+
+            const config = { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 };
+            
+            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess, onScanFailure)
+            .then(() => {
+                document.getElementById('camera-placeholder').classList.add('hidden');
+                btnStart.classList.add('hidden');
+                btnStop.classList.remove('hidden');
+            })
+            .catch(err => {
+                console.error("Error starting scanner", err);
+                // Alert for APK debugging
+                alert("Scanner Error: " + err);
+            });
+        }
+
+        function stopScanning() {
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    document.getElementById('camera-placeholder').classList.remove('hidden');
+                    btnStart.classList.remove('hidden');
+                    btnStop.classList.add('hidden');
+                    console.log("Stopped scanning");
+                }).catch(err => {
+                    console.error("Failed to stop", err);
+                });
+            }
+        }
+
+        function onScanSuccess(decodedText, decodedResult) {
+            // NOTE: We do NOT call stopScanning() here to allow continuous scanning.
+            
+            const currentTime = Date.now();
+            
+            // === DUPLICATE CHECK ===
+            // If the text is the same as the last one AND it's been less than 2.5 seconds, ignore it.
+            // This prevents the camera from spamming the history with the same code instantly.
+            if (decodedText === lastScannedText && (currentTime - lastScannedTime < 2500)) {
+                return;
+            }
+
+            // Update state
+            lastScannedText = decodedText;
+            lastScannedTime = currentTime;
+            
+            // Format detection (basic)
+            let formatName = decodedResult?.result?.format?.formatName || "DETECTED CODE";
+            
+            // Add result to history list
+            addResultToHistory(decodedText, formatName);
+            
+            // Feedback
+            if (navigator.vibrate) navigator.vibrate(200);
+            showToast("Scanned!");
+        }
+
+        function onScanFailure(error) {
+            // handle scan failure, usually better to ignore silent errors
+        }
+
+        function addResultToHistory(text, format) {
+            const historyContainer = document.getElementById('scan-history');
+            const emptyMsg = document.getElementById('empty-history-msg');
+            
+            if(emptyMsg) emptyMsg.remove();
+            
+            const item = document.createElement('div');
+            item.className = "bg-white p-4 rounded-xl shadow-md border border-gray-100 animate-[slideUp_0.3s_ease-out]";
+            
+            const isUrl = isValidURL(text);
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            item.innerHTML = `
+                <div class="flex items-start justify-between mb-2">
+                    <span class="text-xs font-bold text-blue-600 uppercase tracking-wider bg-blue-50 px-2 py-1 rounded">${format}</span>
+                    <span class="text-xs text-gray-400">${time}</span>
+                </div>
+                <p class="scan-text-content text-gray-800 font-mono text-sm break-all bg-gray-50 p-3 rounded-lg border border-gray-200 mb-3 select-all"></p>
+                <div class="flex gap-2">
+                    <button class="btn-copy flex-1 bg-gray-900 text-white py-2 rounded-lg text-sm font-medium active:bg-gray-700 transition-colors flex items-center justify-center gap-2">
+                        <i data-lucide="copy" class="w-4 h-4"></i> Copy
+                    </button>
+                    ${isUrl ? `
+                    <a href="${text}" target="_blank" class="flex-1 border border-blue-600 text-blue-600 py-2 rounded-lg text-sm font-medium active:bg-blue-50 transition-colors flex items-center justify-center gap-2">
+                        <i data-lucide="external-link" class="w-4 h-4"></i> Open
+                    </a>` : ''}
+                </div>
+            `;
+            
+            // Safely set text content
+            item.querySelector('.scan-text-content').innerText = text;
+            
+            // Add event listener for copy
+            item.querySelector('.btn-copy').addEventListener('click', () => copyToClipboard(text));
+
+            // Prepend to show latest at top
+            historyContainer.prepend(item);
+            
+            // Refresh icons for new elements
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        //   GENERATION LOGIC
+        // ==========================================
+
+        const inputEl = document.getElementById('gen-input');
+        const qrContainer = document.getElementById('qrcode-container');
+        const barcodeCanvas = document.getElementById('barcode-canvas');
+        const placeholder = document.getElementById('gen-placeholder');
+        const btnDownload = document.getElementById('btn-download');
+
+        // Debounce generation
+        let timeout = null;
+        inputEl.addEventListener('input', () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(generateCode, 300);
+        });
+
+        function setType(type) {
+            currentType = type;
+            
+            // Toggle Button UI
+            document.querySelectorAll('.type-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-50', 'text-blue-700', 'border-blue-600', 'active');
+                btn.classList.add('border-gray-200', 'text-gray-600');
+            });
+            const activeBtn = type === 'qr' ? document.getElementById('btn-type-qr') : document.getElementById('btn-type-bar');
+            activeBtn.classList.add('bg-blue-50', 'text-blue-700', 'border-blue-600', 'active');
+            activeBtn.classList.remove('border-gray-200', 'text-gray-600');
+
+            generateCode();
+        }
+
+        function generateCode() {
+            const text = inputEl.value.trim();
+            
+            // Reset Views
+            qrContainer.innerHTML = '';
+            qrContainer.classList.add('hidden');
+            barcodeCanvas.classList.add('hidden');
+            placeholder.classList.add('hidden');
+            btnDownload.disabled = true;
+
+            if (!text) {
+                placeholder.classList.remove('hidden');
+                return;
+            }
+
+            btnDownload.disabled = false;
+
+            if (currentType === 'qr') {
+                qrContainer.classList.remove('hidden');
+                // Generate QR
+                new QRCode(qrContainer, {
+                    text: text,
+                    width: 200,
+                    height: 200,
+                    colorDark : "#000000",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.H
+                });
+                
+                // Wait for the image to be created by the library
+                setTimeout(() => {
+                    const img = qrContainer.querySelector('img');
+                    if (img) generatedDataUrl = img.src;
+                }, 100);
+
+            } else {
+                barcodeCanvas.classList.remove('hidden');
+                // Generate Barcode
+                try {
+                    JsBarcode("#barcode-canvas", text, {
+                        format: "CODE128",
+                        lineColor: "#000",
+                        width: 2,
+                        height: 100,
+                        displayValue: true
+                    });
+                    generatedDataUrl = barcodeCanvas.toDataURL("image/png");
+                } catch (e) {
+                    console.error(e);
+                    // Fallback or error state if text is incompatible with barcode
+                    alert("Invalid text for Barcode");
+                }
+            }
+        }
+
+        function downloadCode() {
+            if (!generatedDataUrl) return;
+
+            // Re-grab QR src just in case, as it's DOM generated
+            if (currentType === 'qr') {
+                 const img = qrContainer.querySelector('img');
+                 if (img) generatedDataUrl = img.src;
+                 // Sometimes QR library uses canvas instead of img
+                 const canvas = qrContainer.querySelector('canvas');
+                 if (canvas) generatedDataUrl = canvas.toDataURL("image/png");
+            }
+
+            const link = document.createElement('a');
+            link.download = `code-master-${Date.now()}.png`;
+            link.href = generatedDataUrl;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast("Downloading...");
+        }
+
+        // ==========================================
+        //   UTILITIES
+        // ==========================================
+
+        function isValidURL(string) {
+            try {
+                new URL(string);
+                return true;
+            } catch (_) {
+                return false;  
+            }
+        }
+
+        function copyToClipboard(text) {
+            // Fallback for iframe environments or older browsers
+            if (!navigator.clipboard) {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    showToast("Copied to clipboard!");
+                } catch (err) {
+                    showToast("Failed to copy");
+                }
+                document.body.removeChild(textArea);
+                return;
+            }
+            
+            navigator.clipboard.writeText(text).then(() => {
+                showToast("Copied to clipboard!");
+            }, (err) => {
+                showToast("Failed to copy");
+            });
+        }
+
+    </script>
+</body>
+</html>
