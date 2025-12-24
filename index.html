@@ -5,7 +5,7 @@
     <!-- Added viewport-fit=cover for proper notch handling -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#2563eb">
-    <title>QR & Barcode Master</title>
+    <title>QR Master</title>
     
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7V5a2 2 0 0 1 2-2h2'/%3E%3Cpath d='M17 3h2a2 2 0 0 1 2 2v2'/%3E%3Cpath d='M21 17v2a2 2 0 0 1-2 2h-2'/%3E%3Cpath d='M7 21H5a2 2 0 0 1-2-2v-2'/%3E%3Cline x1='7' x2='17' y1='12' y2='12'/%3E%3C/svg%3E">
@@ -80,9 +80,8 @@
         <header class="flex-shrink-0 bg-blue-600 text-white p-4 pt-safe-header shadow-md z-20 flex justify-between items-center">
             <div>
                 <h1 class="text-xl font-bold tracking-tight flex items-center gap-2">
-                    <i data-lucide="scan-line" class="w-6 h-6"></i> CodeMaster
+                    <i data-lucide="scan-line" class="w-6 h-6"></i> QR Master
                 </h1>
-                <p class="text-blue-100 text-xs">Scan & Generate instantly</p>
             </div>
             <!-- Clear History Button -->
             <button onclick="clearHistory()" class="text-xs bg-blue-700 hover:bg-blue-800 px-2 py-1 rounded text-blue-100 transition-colors">
@@ -192,7 +191,6 @@
         // --- State ---
         let html5QrCode;
         let currentType = 'qr'; // 'qr' or 'barcode'
-        let generatedDataUrl = null;
         let lastScannedText = null;
         let lastScannedTime = 0;
 
@@ -419,8 +417,6 @@
                 return;
             }
 
-            btnDownload.disabled = false;
-
             if (currentType === 'qr') {
                 qrContainer.classList.remove('hidden');
                 // Generate QR
@@ -433,10 +429,9 @@
                     correctLevel : QRCode.CorrectLevel.H
                 });
                 
-                // Wait for the image to be created by the library
+                // Enable button slightly after to ensure rendering started
                 setTimeout(() => {
-                    const img = qrContainer.querySelector('img');
-                    if (img) generatedDataUrl = img.src;
+                    btnDownload.disabled = false;
                 }, 100);
 
             } else {
@@ -450,34 +445,84 @@
                         height: 100,
                         displayValue: true
                     });
-                    generatedDataUrl = barcodeCanvas.toDataURL("image/png");
+                    btnDownload.disabled = false;
                 } catch (e) {
                     console.error(e);
-                    // Fallback or error state if text is incompatible with barcode
                     alert("Invalid text for Barcode");
                 }
             }
         }
 
         function downloadCode() {
-            if (!generatedDataUrl) return;
+            // Find the source element
+            let sourceCanvas = null;
+            let sourceImg = null;
 
-            // Re-grab QR src just in case, as it's DOM generated
             if (currentType === 'qr') {
-                 const img = qrContainer.querySelector('img');
-                 if (img) generatedDataUrl = img.src;
-                 // Sometimes QR library uses canvas instead of img
-                 const canvas = qrContainer.querySelector('canvas');
-                 if (canvas) generatedDataUrl = canvas.toDataURL("image/png");
+                const img = qrContainer.querySelector('img');
+                // Check if img exists and has a valid src (base64)
+                if (img && img.src && img.src.startsWith('data:')) {
+                    sourceImg = img;
+                } else {
+                    // Fallback to canvas if library rendered that
+                    const canvas = qrContainer.querySelector('canvas');
+                    if (canvas) sourceCanvas = canvas;
+                }
+            } else {
+                sourceCanvas = barcodeCanvas;
             }
 
-            const link = document.createElement('a');
-            link.download = `code-master-${Date.now()}.png`;
-            link.href = generatedDataUrl;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            showToast("Downloading...");
+            if (!sourceCanvas && !sourceImg) {
+                showToast("Generation in progress...");
+                return;
+            }
+
+            // Create a temporary canvas to add white border
+            const tempCanvas = document.createElement('canvas');
+            const ctx = tempCanvas.getContext('2d');
+            const border = 20; // 20px border
+
+            if (sourceCanvas) {
+                tempCanvas.width = sourceCanvas.width + (border * 2);
+                tempCanvas.height = sourceCanvas.height + (border * 2);
+                
+                // Draw white background
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+                
+                // Draw code
+                ctx.drawImage(sourceCanvas, border, border);
+            } else if (sourceImg) {
+                // Ensure dimensions are valid
+                const w = sourceImg.naturalWidth || sourceImg.width || 200;
+                const h = sourceImg.naturalHeight || sourceImg.height || 200;
+
+                tempCanvas.width = w + (border * 2);
+                tempCanvas.height = h + (border * 2);
+
+                // Draw white background
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+                
+                // Draw code
+                ctx.drawImage(sourceImg, border, border, w, h);
+            }
+
+            try {
+                const finalUrl = tempCanvas.toDataURL("image/png");
+                
+                // Trigger download
+                const link = document.createElement('a');
+                link.download = `code-master-${Date.now()}.png`;
+                link.href = finalUrl;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showToast("Downloading...");
+            } catch (e) {
+                console.error(e);
+                showToast("Download failed");
+            }
         }
 
         // ==========================================
