@@ -4,7 +4,9 @@
   <img src="assests/image/logo.png" alt="QR Master Logo" width="100"/>
   <h3>The Ultimate Web-Based QR & Barcode Tool</h3>
   <p>
-    <a href="https://qr-scanner-ar.netlify.app/" target="_blank"><b>Live Demo: qr-scanner-ar.netlify.app</b></a>
+    <a href="https://qr-scanner-ar.netlify.app/" target="_blank">
+      <img src="https://img.shields.io/badge/🚀_Live_Demo-Click_Here-blue?style=for-the-badge&color=2563eb" alt="Live Demo"/>
+    </a>
   </p>
 </div>
 
@@ -48,4 +50,8 @@ The primary purpose of QR Master Pro is to provide an accessible, all-in-one uti
   - `JsBarcode` (For Barcode generation)
 
 ## 🌐 Try It Now
-Experience it yourself: **[https://qr-scanner-ar.netlify.app/](https://qr-scanner-ar.netlify.app/)**
+Experience it yourself in your browser:  
+<br>
+<a href="https://qr-scanner-ar.netlify.app/" target="_blank">
+  <img src="https://img.shields.io/badge/Launch_QR_Master_Pro-Now-2563eb?style=for-the-badge" alt="Try It Now"/>
+</a>
