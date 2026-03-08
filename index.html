@@ -139,12 +139,18 @@
 
                     <div class="mt-6 flex gap-3 w-full">
                         <button id="btn-start-scan"
-                            class="flex-1 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3">
-                            <i data-lucide="play" class="w-5 h-5"></i> Start Scanner
+                            class="flex-1 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
+                            <i data-lucide="play" class="w-5 h-5"></i> Start
                         </button>
                         <button id="btn-stop-scan"
-                            class="hidden flex-1 py-4 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3">
+                            class="hidden flex-1 py-4 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
                             <i data-lucide="square" class="w-5 h-5"></i> Stop
+                        </button>
+
+                        <input type="file" id="file-upload" accept="image/*" class="hidden">
+                        <button id="btn-upload" onclick="document.getElementById('file-upload').click()"
+                            class="flex-1 py-4 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 whitespace-nowrap">
+                            <i data-lucide="image" class="w-5 h-5"></i> Gallery
                         </button>
                     </div>
                 </div>
@@ -274,10 +280,46 @@
         const btnStart = document.getElementById('btn-start-scan');
         const btnStop = document.getElementById('btn-stop-scan');
         const btnTorch = document.getElementById('btn-torch');
+        const fileUpload = document.getElementById('file-upload');
 
         btnStart.addEventListener('click', startScanning);
         btnStop.addEventListener('click', stopScanning);
         btnTorch.addEventListener('click', toggleTorch);
+
+        fileUpload.addEventListener('change', async (e) => {
+            if (e.target.files.length == 0) {
+                return;
+            }
+            const file = e.target.files[0];
+            
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("reader");
+            }
+
+            try {
+                if (html5QrCode && html5QrCode.isScanning) {
+                    await stopScanning();
+                }
+
+                document.getElementById('camera-placeholder').classList.remove('hidden');
+                document.getElementById('camera-placeholder').innerHTML = `<i data-lucide="loader" class="w-12 h-12 mb-2 opacity-20 animate-spin"></i><span class="text-sm font-medium opacity-40">Scanning Image...</span>`;
+                lucide.createIcons();
+
+                const decodedText = await html5QrCode.scanFile(file, true);
+                
+                onScanSuccess(decodedText, { result: { format: { formatName: "IMAGE" } } });
+                
+                document.getElementById('camera-placeholder').innerHTML = `<i data-lucide="camera" class="w-12 h-12 mb-2 opacity-20"></i><span class="text-sm font-medium opacity-40">Camera Ready</span>`;
+                lucide.createIcons();
+            } catch (err) {
+                showToast("No QR/Barcode found in image");
+                console.error(err);
+                document.getElementById('camera-placeholder').innerHTML = `<i data-lucide="camera" class="w-12 h-12 mb-2 opacity-20"></i><span class="text-sm font-medium opacity-40">Camera Ready</span>`;
+                lucide.createIcons();
+            } finally {
+                e.target.value = '';
+            }
+        });
 
         async function startScanning() {
             if (!html5QrCode) {
